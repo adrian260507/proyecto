@@ -1,6 +1,6 @@
 from app import create_app
 import os
-from models import crear_tablas
+from models_bd import crear_tablas
 
 app = create_app()
 
@@ -35,4 +35,5 @@ if __name__ == "__main__":
         )
     except Exception as e:
         app.logger.error(f"Error al iniciar la aplicación: {e}")
+
         raise
