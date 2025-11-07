@@ -3,13 +3,16 @@ from mysql.connector import Error
 from werkzeug.security import generate_password_hash
 from flask import session, flash, redirect, url_for
 from functools import wraps
+import os
 
 # Configuración de conexión
+
 config = {
-    "host": "localhost",
-    "user": "root",
-    "password": "",  # Cambiar según tu configuración
-    "database": "sistemagestionbd"  # Debes crear esta BD previamente
+    "host": os.getenv("MYSQLHOST", "localhost"),
+    "user": os.getenv("MYSQLUSER", "root"),
+    "password": os.getenv("MYSQLPASSWORD", ""),
+    "database": os.getenv("MYSQLDATABASE", "sistemagestionbd"),
+    "port": int(os.getenv("MYSQLPORT", 3306))
 }
 
 def conectar():
@@ -218,4 +221,5 @@ def role_required(*ids):
                 return redirect(url_for("publico.inicio_publico"))
             return f(*a, **k)
         return w
+
     return deco
