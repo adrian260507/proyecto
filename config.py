@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv() 
 
 class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-prod-railway")
+    SECRET_KEY = os.getenv("SECRET_KEY", "C5t~u1%8W-9Ae6nzV`<5")
     
     # DB - Railway proporciona DATABASE_URL
     DB_HOST = os.getenv("DB_HOST", os.getenv("MYSQLHOST", "127.0.0.1"))
@@ -19,7 +19,7 @@ class Config:
     MAIL_PORT = int(os.getenv("MAIL_PORT", "587"))
     MAIL_USE_TLS = True
     MAIL_USERNAME = os.getenv("MAIL_USERNAME", "")
-    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "")
+    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "ghih jrpw ffbb rjuj")
     MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER", "asistenciasgtc@gmail.com")
     
     # App
@@ -34,4 +34,5 @@ class Config:
     
     # Configuración del host y puerto para Railway
     FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
+
     FLASK_PORT = int(os.getenv("PORT", "5000"))
