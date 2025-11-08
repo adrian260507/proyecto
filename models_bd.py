@@ -32,7 +32,7 @@ def crear_tablas():
         nombre VARCHAR(100) NOT NULL,
         apellido VARCHAR(100),
         correo VARCHAR(150) NOT NULL UNIQUE,
-        contrasena VARCHAR(255) NOT NULL,
+        contrasena VARCHAR(500) NOT NULL,
         celular VARCHAR(20),
         documento_id VARCHAR(50),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -223,3 +223,4 @@ def role_required(*ids):
         return w
 
     return deco
+
