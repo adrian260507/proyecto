@@ -10,7 +10,7 @@ class Config:
     # DB - Railway proporciona DATABASE_URL
     DB_HOST = os.getenv("DB_HOST", os.getenv("MYSQLHOST", "127.0.0.1"))
     DB_USER = os.getenv("DB_USER", os.getenv("MYSQLUSER", "root"))
-    DB_PASSWORD = os.getenv("DB_PASSWORD", os.getenv("MYSQLPASSWORD", ""))
+    DB_PASSWORD = os.getenv("DB_PASSWORD", os.getenv("MYSQLPASSWORD", "ghih jrpw ffbb rjuj"))
     DB_NAME = os.getenv("DB_NAME", os.getenv("MYSQLDATABASE", "sistemagestionbd"))
     DB_PORT = int(os.getenv("DB_PORT", os.getenv("MYSQLPORT", "3306")))
     
@@ -18,10 +18,11 @@ class Config:
     MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com")
     MAIL_PORT = int(os.getenv("MAIL_PORT", "587"))
     MAIL_USE_TLS = True
-    MAIL_USERNAME = os.getenv("MAIL_USERNAME", "")
-    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "ghih jrpw ffbb rjuj")
-    MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER", "asistenciasgtc@gmail.com")
-    
+    MAIL_USE_SSL = False
+    MAIL_USERNAME = os.getenv("MAIL_USERNAME", "asistenciasgtc@gmail.com")
+    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD","")
+    MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER", "Connexa <asistenciasgtc@gmail.com>")
+
     # App
     BASE_URL = os.getenv("BASE_URL", "https://tu-app.railway.app")
     MAIL_TEMPLATE_FOLDER = "mails"
@@ -36,3 +37,4 @@ class Config:
     FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
 
     FLASK_PORT = int(os.getenv("PORT", "5000"))
+
