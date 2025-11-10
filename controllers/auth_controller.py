@@ -171,22 +171,44 @@ def login():
         contrasena = request.form.get("contrasena","").strip()
         user = User.get_by_email(correo)
         
-        if user and check_password_hash(user.contrasena, contrasena):
-            if not user.is_active:
-                flash("El usuario está deshabilitado", "danger")
+        # DEBUG DETALLADO
+        current_app.logger.info(f"=== DEBUG LOGIN ===")
+        current_app.logger.info(f"Correo intentado: {correo}")
+        current_app.logger.info(f"Usuario encontrado: {user is not None}")
+        
+        if user:
+            current_app.logger.info(f"User ID: {user.id}")
+            current_app.logger.info(f"User activo: {user.is_active}")
+            current_app.logger.info(f"Email verificado: {user.email_verified}")
+            current_app.logger.info(f"Contraseña en DB: {user.contrasena[:30]}...")
+            current_app.logger.info(f"Contraseña proporcionada: {contrasena}")
+            
+            # Verificar contraseña con más detalle
+            password_match = check_password_hash(user.contrasena, contrasena)
+            current_app.logger.info(f"Contraseña coincide: {password_match}")
+            
+            if password_match:
+                if not user.is_active:
+                    current_app.logger.error("❌ Usuario inactivo")
+                    flash("El usuario está deshabilitado", "danger")
+                else:
+                    # TEMPORAL: Deshabilitar verificación de email
+                    # if not User.is_email_verified(user.id): 
+                    #     current_app.logger.error("❌ Email no verificado")
+                    #     flash("⚠️ Por favor, verifica tu correo electrónico antes de iniciar sesión.", "warning")
+                    #     return redirect(url_for("auth.verify_email", user_id=user.id))
+                    
+                    login_user(user)
+                    current_app.logger.info("✅ Login exitoso")
+                    flash("Bienvenido/a", "success")
+                    return redirect(url_for("publico.inicio_publico"))
             else:
-                # TEMPORAL: Deshabilitar verificación de correo para testing
-                # if not User.is_email_verified(user.id): 
-                #     flash("⚠️ Por favor, verifica tu correo electrónico antes de iniciar sesión.", "warning")
-                #     return redirect(url_for("auth.verify_email", user_id=user.id))
-                
-                login_user(user)
-                flash("Bienvenido/a", "success")
-                return redirect(url_for("publico.inicio_publico"))
+                current_app.logger.error("❌ Contraseña incorrecta")
         else:
-            # Debug: Log para ver qué está fallando
-            current_app.logger.error(f"Login fallido para: {correo}")
-            flash("Credenciales inválidas.", "danger")
+            current_app.logger.error("❌ Usuario no encontrado en la base de datos")
+        
+        current_app.logger.error(f"Login fallido para: {correo}")
+        flash("Credenciales inválidas.", "danger")
     
     return render_template("auth/login.html")
 
@@ -333,5 +355,22 @@ def reset_password(token):
         return redirect(url_for("auth.login"))
 
     return render_template("auth/reset.html", token=token)
+
+
+@auth_bp.route("/debug-user/<email>")
+def debug_user(email):
+    """Endpoint temporal para debug de usuarios"""
+    user = User.get_by_email(email)
+    if user:
+        return {
+            'exists': True,
+            'id': user.id,
+            'nombre': user.nombre,
+            'activo': user.is_active,
+            'email_verified': user.email_verified,
+            'hash_length': len(user.contrasena)
+        }
+    else:
+        return {'exists': False, 'email': email}
 
 
