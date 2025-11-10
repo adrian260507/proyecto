@@ -4,53 +4,68 @@ from flask import current_app, url_for
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 from datetime import datetime
+import logging
 
 # Importamos el renderizador de emails
 from .email_renderer import send_templated_email
 
-def send_mail(subject, recipients, body, html_body=None):
+def send_mail(subject, recipients, body, html_body=None, attachments=None):
     """
-    Función de bajo nivel para enviar correos. 
-    Preferiblemente usar send_templated_email.
+    Función de bajo nivel para enviar correos optimizada para MailerSend
     """
     try:
         msg = Message(
             subject=subject,
-            sender=current_app.config.get("MAIL_DEFAULT_SENDER", current_app.config.get("MAIL_USERNAME")),
+            sender=current_app.config.get("MAIL_DEFAULT_SENDER"),
             recipients=recipients
         )
         msg.body = body
         if html_body:
             msg.html = html_body
         
+        # Manejar adjuntos si los hay
+        if attachments:
+            for attachment in attachments:
+                msg.attach(
+                    filename=attachment['filename'],
+                    content_type=attachment['content_type'],
+                    data=attachment['data']
+                )
+        
         mail = current_app.extensions['mail']
         mail.send(msg)
-        current_app.logger.info(f"Correo enviado exitosamente a {recipients}")
+        
+        current_app.logger.info(f"✅ Correo enviado exitosamente a {recipients}")
         return True
+        
     except Exception as e:
-        current_app.logger.error(f"Error enviando correo: {str(e)}")
+        current_app.logger.error(f"❌ Error enviando correo con Flask-Mail: {str(e)}")
         # Fallback: intentar enviar directamente con SMTP
-        return _send_direct_smtp(subject, recipients, body, html_body)
+        return _send_direct_smtp_mailersend(subject, recipients, body, html_body, attachments)
 
-def _send_direct_smtp(subject, recipients, body, html_body=None):
-    """Fallback directo por SMTP si Flask-Mail falla"""
+def _send_direct_smtp_mailersend(subject, recipients, body, html_body=None, attachments=None):
+    """Fallback directo por SMTP optimizado para MailerSend"""
     try:
-        # Configuración
-        smtp_server = current_app.config.get("MAIL_SERVER", "smtp.gmail.com")
+        # Configuración específica para MailerSend
+        smtp_server = current_app.config.get("MAIL_SERVER", "smtp.mailersend.net")
         smtp_port = current_app.config.get("MAIL_PORT", 587)
         username = current_app.config.get("MAIL_USERNAME")
         password = current_app.config.get("MAIL_PASSWORD")
         
         if not username or not password:
-            current_app.logger.error("Credenciales de email no configuradas")
+            current_app.logger.error("❌ Credenciales de MailerSend no configuradas")
             return False
         
         # Crear mensaje
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
-        msg['From'] = username
+        msg['From'] = current_app.config.get("MAIL_DEFAULT_SENDER", username)
         msg['To'] = ', '.join(recipients)
+        
+        # Agregar headers importantes para MailerSend
+        msg['X-Mailer'] = 'Connexa Event Management System'
         
         # Adjuntar partes
         part1 = MIMEText(body, 'plain')
@@ -60,30 +75,37 @@ def _send_direct_smtp(subject, recipients, body, html_body=None):
             part2 = MIMEText(html_body, 'html')
             msg.attach(part2)
         
-        # Enviar
+        # Manejar adjuntos
+        if attachments:
+            for attachment in attachments:
+                part = MIMEApplication(attachment['data'])
+                part.add_header('Content-Disposition', 'attachment', filename=attachment['filename'])
+                msg.attach(part)
+        
+        # Enviar con MailerSend
         server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
+        server.starttls()  # Usar TLS
         server.login(username, password)
         server.send_message(msg)
         server.quit()
         
-        current_app.logger.info(f"Correo enviado por SMTP directo a {recipients}")
+        current_app.logger.info(f"✅ Correo enviado por SMTP directo (MailerSend) a {recipients}")
         return True
         
     except Exception as e:
-        current_app.logger.error(f"Error en SMTP directo: {str(e)}")
+        current_app.logger.error(f"❌ Error en SMTP directo con MailerSend: {str(e)}")
         return False
 
 # =============================================
-# FUNCIONES DE CORREO CON TEMPLATES
+# FUNCIONES DE CORREO CON TEMPLATES - OPTIMIZADAS
 # =============================================
 
 def enviar_correo_contacto(nombre, email, telefono, asunto, mensaje, ip_address, user_agent, fecha_consulta):
     """
-    Envía un correo con los datos del formulario de contacto
+    Envía un correo con los datos del formulario de contacto - OPTIMIZADO
     """
     try:
-        admin_email = current_app.config.get("MAIL_USERNAME")
+        admin_email = current_app.config.get("MAIL_USERNAME")  # Usar el mismo email para pruebas
         if not admin_email:
             current_app.logger.error("MAIL_USERNAME no configurado para correos de contacto")
             return False
@@ -103,7 +125,7 @@ def enviar_correo_contacto(nombre, email, telefono, asunto, mensaje, ip_address,
         # Enviar correo al admin usando template
         success_admin = send_templated_email(
             subject=f"📧 Contacto Web: {asunto}",
-            recipients=[admin_email],
+            recipients=[admin_email],  # Enviar a nosotros mismos para pruebas
             template_path="emails/contacto/admin.html",
             **context_admin
         )
@@ -170,13 +192,10 @@ def enviar_notificacion_certificado_disponible(usuario, evento, inscripcion, por
 
 def enviar_certificado_por_correo(usuario, evento, certificado_pdf, inscripcion):
     """
-    Envía el certificado PDF por correo electrónico - VERSIÓN CORREGIDA
+    Envía el certificado PDF por correo electrónico - OPTIMIZADO PARA MAILERSEND
     """
     try:
         current_app.logger.info(f"📤 Enviando certificado por correo a {usuario.correo}")
-        
-        # DEBUG: Log para ver la estructura del objeto evento
-        current_app.logger.info(f"🔍 Estructura del objeto evento: {list(evento.keys()) if isinstance(evento, dict) else 'No es dict'}")
         
         # Obtener el nombre del evento de manera segura
         evento_nombre = evento.get('nombre') or evento.get('evento') or 'Evento'
@@ -196,7 +215,7 @@ def enviar_certificado_por_correo(usuario, evento, certificado_pdf, inscripcion)
         else:
             fecha_fin_str = str(fecha_fin).split()[0] if fecha_fin else 'Fecha no disponible'
 
-        # Crear HTML del correo
+        # Crear HTML del correo optimizado
         html_body = f"""
         <!DOCTYPE html>
         <html>
@@ -289,35 +308,36 @@ def enviar_certificado_por_correo(usuario, evento, certificado_pdf, inscripcion)
         Sistema de Gestión de Talleres y Conferencias
         """
 
-        # Enviar correo con adjunto
-        msg = Message(
+        # Preparar adjunto
+        attachments = [{
+            'filename': f"certificado_{evento_nombre.replace(' ', '_')}.pdf",
+            'content_type': "application/pdf",
+            'data': certificado_pdf.getvalue()
+        }]
+
+        # Enviar correo usando nuestra función mejorada
+        success = send_mail(
             subject=f"📜 Tu certificado - {evento_nombre}",
-            sender=current_app.config.get("MAIL_DEFAULT_SENDER"),
-            recipients=[usuario.correo]
-        )
-        msg.body = text_body
-        msg.html = html_body
-        
-        # Adjuntar el certificado PDF
-        msg.attach(
-            filename=f"certificado_{evento_nombre.replace(' ', '_')}.pdf",
-            content_type="application/pdf",
-            data=certificado_pdf.getvalue()
+            recipients=[usuario.correo],
+            body=text_body,
+            html_body=html_body,
+            attachments=attachments
         )
         
-        mail = current_app.extensions['mail']
-        mail.send(msg)
+        if success:
+            # Marcar como enviado en la base de datos
+            try:
+                from models.db import q_exec
+                q_exec("UPDATE certificados SET enviado_por_correo=1 WHERE id_inscripcion=%s", 
+                       (inscripcion['id_inscripcion'],))
+            except Exception as db_error:
+                current_app.logger.warning(f"⚠️ No se pudo marcar certificado como enviado: {db_error}")
+            
+            current_app.logger.info(f"✅ Certificado enviado por correo a {usuario.correo}")
+        else:
+            current_app.logger.error(f"❌ Error enviando certificado a {usuario.correo}")
         
-        # Marcar como enviado en la base de datos
-        try:
-            from models.db import q_exec
-            q_exec("UPDATE certificados SET enviado_por_correo=1 WHERE id_inscripcion=%s", 
-                   (inscripcion['id_inscripcion'],))
-        except Exception as db_error:
-            current_app.logger.warning(f"⚠️ No se pudo marcar certificado como enviado: {db_error}")
-        
-        current_app.logger.info(f"✅ Certificado enviado por correo a {usuario.correo}")
-        return True
+        return success
         
     except Exception as e:
         current_app.logger.error(f"💥 Error en enviar_certificado_por_correo: {str(e)}")
@@ -400,6 +420,28 @@ def enviar_recuperacion_contrasena(usuario, token):
 
     except Exception as e:
         current_app.logger.error(f"Error enviando recuperación de contraseña: {str(e)}")
+        return False
+
+def enviar_verificacion_correo(usuario, token):
+    """
+    Envía correo de verificación de email
+    """
+    try:
+        context = {
+            'usuario_nombre': usuario.nombre,
+            'verification_token': token,
+            'expira_horas': 24
+        }
+
+        return send_templated_email(
+            subject="🔐 Verifica tu correo electrónico - Connexa",
+            recipients=[usuario.correo],
+            template_path="emails/auth/verificacion_correo.html",
+            **context
+        )
+
+    except Exception as e:
+        current_app.logger.error(f"Error enviando verificación de correo: {str(e)}")
         return False
 
 # =============================================
