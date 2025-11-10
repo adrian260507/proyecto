@@ -9,7 +9,7 @@ from models.db import q_one, q_exec
 
 def generar_qr_asistencia(eid, duracion_minutos=120):
     """
-    Genera un código QR para marcar asistencia automática
+    Genera un código QR para marcar asistencia automática - VERSIÓN CORREGIDA
     """
     try:
         # Generar token único con expiración
@@ -60,7 +60,7 @@ def generar_qr_asistencia(eid, duracion_minutos=120):
 
 def validar_token_qr(token, eid):
     """
-    Valida si un token QR es válido
+    Valida si un token QR es válido - VERSIÓN SIMPLIFICADA Y FUNCIONAL
     """
     try:
         # Buscar token en la base de datos
@@ -80,12 +80,19 @@ def validar_token_qr(token, eid):
             return False
         
         # Verificar que no haya expirado
-        if token_data['fecha_expiracion'] and token_data['fecha_expiracion'] < datetime.now():
-            print(f"❌ Token expirado: {token_data['fecha_expiracion']}")
-            return False
+        if token_data['fecha_expiracion']:
+            # Asegurar que es datetime
+            if isinstance(token_data['fecha_expiracion'], str):
+                expiracion = datetime.fromisoformat(token_data['fecha_expiracion'].replace('Z', '+00:00'))
+            else:
+                expiracion = token_data['fecha_expiracion']
+            
+            if expiracion < datetime.now():
+                print(f"❌ Token expirado: {expiracion}")
+                return False
         
         # Verificar que no haya sido usado
-        if token_data['usado_por'] != 0:
+        if token_data['usado_por'] and token_data['usado_por'] != 0:
             print(f"❌ Token ya usado por: {token_data['usado_por']}")
             return False
         
