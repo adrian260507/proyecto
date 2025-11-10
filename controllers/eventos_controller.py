@@ -1245,5 +1245,14 @@ def escanear_qr_asistencia(eid, token):
         flash(f"❌ Error al marcar asistencia: {str(e)}", "danger")
         return redirect(url_for("eventos.evento_detalle", eid=eid))
 
+@eventos_bp.route("/test_email")
+def test_email():
+    """Ruta temporal para probar el sistema de correos"""
+    from utils.email_tester import test_email_system
+    if test_email_system():
+        flash("✅ Prueba de correo exitosa", "success")
+    else:
+        flash("❌ Prueba de correo fallida", "danger")
+    return redirect(url_for("publico.inicio_publico"))
 
 
