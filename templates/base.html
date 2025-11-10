@@ -11,13 +11,18 @@
 
   <!-- Tu CSS de inicio -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- Nuevo CSS para navbar móvil -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-nav.css') }}">
 
   <style>
     .brand { color:#1877f2; font-weight:700; letter-spacing:.2px; }
     .table thead th { white-space: nowrap; }
     .checkbox-cell { text-align:center; vertical-align:middle; }
+    
+    /* Estilos existentes que se mantienen */
     .nav-user-actions { display: flex; gap: 0.5rem; align-items: center; }
     .nav-user-actions .btn { white-space: nowrap; }
+    
     @media (max-width: 768px) {
       .nav-user-actions { 
         flex-direction: column; 
@@ -39,11 +44,13 @@
     <!-- Marca: lleva al nuevo inicio público -->
     <a class="navbar-brand brand" href="{{ url_for('publico.inicio_publico') }}">Connexa</a>
 
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navc">
+    <!-- Checkbox hack para el menú móvil sin JavaScript -->
+    <input type="checkbox" id="navbar-toggler-checkbox" class="navbar-toggler-checkbox">
+    <label for="navbar-toggler-checkbox" class="navbar-toggler" type="button">
       <span class="navbar-toggler-icon"></span>
-    </button>
+    </label>
 
-    <div class="collapse navbar-collapse" id="navc">
+    <div class="navbar-collapse" id="navc">
       <ul class="navbar-nav me-auto"> 
         <!-- Enlace a Inicio -->
         <li class="nav-item"><a class="nav-link" href="{{ url_for('publico.inicio_publico') }}">Inicio</a></li>
@@ -67,6 +74,8 @@
         <!-- Enlace a Quiénes Somos -->
         <li class="nav-item"><a class="nav-link" href="{{ url_for('publico.quienes_somos') }}">Quiénes Somos</a></li>
 
+        <!-- Enlace a Contacto -->
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('publico.contacto') }}">Contacto</a></li>
       </ul>
 
       <div class="nav-user-actions">
@@ -110,5 +119,4 @@
 <!-- Bootstrap JS (solo para funcionalidades básicas como el alert dismissible) -->
 
 </body>
-
 </html>
