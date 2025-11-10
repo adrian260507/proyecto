@@ -355,24 +355,7 @@ def reset_password(token):
         return redirect(url_for("auth.login"))
 
     return render_template("auth/reset.html", token=token)
-
-
-@auth_bp.route("/debug-user/<email>")
-def debug_user(email):
-    """Endpoint temporal para debug de usuarios"""
-    user = User.get_by_email(email)
-    if user:
-        return {
-            'exists': True,
-            'id': user.id,
-            'nombre': user.nombre,
-            'activo': user.is_active,
-            'email_verified': user.email_verified,
-            'hash_length': len(user.contrasena)
-        }
-    else:
-        return {'exists': False, 'email': email}
-        
+    
 @auth_bp.route("/debug-database")
 def debug_database():
     """Diagnóstico completo de la base de datos"""
@@ -408,4 +391,31 @@ def debug_database():
     except Exception as e:
         return {'error': str(e)}
 
+@auth_bp.route("/admin-reset-passwords")
+def admin_reset_passwords():
+    """Endpoint temporal para resetear todas las contraseñas"""
+    from models.db import q_all, q_exec
+    from werkzeug.security import generate_password_hash
+    
+    # Solo permitir a admins
+    if not current_user.is_authenticated or current_user.rol_id != 2:
+        return "No autorizado", 403
+    
+    # Contraseña temporal
+    temp_password = "Temp123!"
+    hashed_password = generate_password_hash(temp_password)
+    
+    # Resetear todos los usuarios excepto el admin principal
+    q_exec("""
+        UPDATE usuarios 
+        SET contrasena = %s 
+        WHERE correo != 'adriansernagonzalez260507@gmail.com'
+    """, (hashed_password,))
+    
+    return f"""
+    <h1>Contraseñas Reseteadas</h1>
+    <p>Se han actualizado todas las contraseñas.</p>
+    <p><strong>Contraseña temporal: {temp_password}</strong></p>
+    <p>Los usuarios deben cambiar su contraseña después del primer login.</p>
+    """
 
