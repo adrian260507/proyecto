@@ -12,7 +12,7 @@ def get_email_css():
         current_app.logger.info(f"📁 Buscando CSS en: {css_path}")
         
         if not os.path.exists(css_path):
-            current_app.logger.error(f"❌ Archivo CSS no encontrado: {css_path}")
+            current_app.logger.warning(f"⚠️ Archivo CSS no encontrado: {css_path}")
             return "/* CSS no encontrado */"
             
         with open(css_path, 'r', encoding='utf-8') as f:
@@ -34,7 +34,7 @@ def render_email(template_path, **context):
         base_context = {
             'base_url': current_app.config.get('BASE_URL', 'http://localhost:5000'),
             'app_name': 'Connexa - Sistema de Gestión',
-            'support_email': 'asistenciasgtc@gmail.com'
+            'support_email': current_app.config.get('MAIL_USERNAME', 'asistenciasgtc@gmail.com')
         }
         base_context.update(context)
         
@@ -43,7 +43,7 @@ def render_email(template_path, **context):
         html_content = render_template(template_path, **base_context)
         current_app.logger.info(f"✅ Plantilla renderizada, tamaño: {len(html_content)} caracteres")
         
-        # Inyectar CSS inline en el HTML
+        # Inyectar CSS inline en el HTML (mejor compatibilidad con clientes de email)
         css_content = get_email_css()
         html_with_css = html_content.replace('</head>', f'<style>{css_content}</style></head>')
         
@@ -59,7 +59,7 @@ def render_email(template_path, **context):
 
 def send_templated_email(subject, recipients, template_path, **context):
     """
-    Envía un correo usando una plantilla
+    Envía un correo usando una plantilla - OPTIMIZADO PARA MAILERSEND
     """
     try:
         current_app.logger.info(f"📤 Intentando enviar correo a: {recipients}")
@@ -71,7 +71,7 @@ def send_templated_email(subject, recipients, template_path, **context):
         mail_password = current_app.config.get("MAIL_PASSWORD")
         
         if not mail_username or not mail_password:
-            current_app.logger.error("❌ Credenciales de email no configuradas")
+            current_app.logger.error("❌ Credenciales de MailerSend no configuradas")
             return False
             
         # Renderizar HTML con CSS inline
@@ -80,19 +80,21 @@ def send_templated_email(subject, recipients, template_path, **context):
         # Generar versión texto plano
         text_body = generate_plain_text(html_body)
         
-        msg = Message(
+        # Usar nuestra función mejorada de envío
+        from .mailer import send_mail
+        success = send_mail(
             subject=subject,
-            sender=current_app.config.get("MAIL_DEFAULT_SENDER"),
-            recipients=recipients
+            recipients=recipients,
+            body=text_body,
+            html_body=html_body
         )
-        msg.body = text_body
-        msg.html = html_body
         
-        mail = current_app.extensions['mail']
-        mail.send(msg)
-        
-        current_app.logger.info(f"✅ Correo enviado exitosamente a {recipients}")
-        return True
+        if success:
+            current_app.logger.info(f"✅ Correo enviado exitosamente a {recipients}")
+        else:
+            current_app.logger.error(f"❌ Error enviando correo a {recipients}")
+            
+        return success
         
     except Exception as e:
         current_app.logger.error(f"❌ Error enviando correo con plantilla {template_path}: {str(e)}")
