@@ -25,159 +25,210 @@ def rango_dias(d1:date, d2:date):
 @login_required
 def eventos_list():
     """Muestra eventos según el rol del usuario con filtros avanzados"""
-    rol = current_user.rol_id
-    uid = current_user.id
-    
-    # OBTENER FILTROS (excluyendo 'page' de los filtros normales)
-    page = request.args.get('page', 1, type=int)
-    filtros = {
-        'nombre': request.args.get('nombre', ''),
-        'tipo': request.args.get('tipo', ''),
-        'modalidad': request.args.get('modalidad', ''),
-        'estado': request.args.get('estado', ''),
-        'organizador': request.args.get('organizador', ''),
-        'fecha_desde': request.args.get('fecha_desde', ''),
-        'fecha_hasta': request.args.get('fecha_hasta', '')
-    }
-    
-    # PAGINACIÓN
-    per_page = 10
-    offset = (page - 1) * per_page
+    try:
+        rol = current_user.rol_id
+        uid = current_user.id
+        current_app.logger.info(f"🎯 Accediendo a eventos_list - Rol: {rol}, UserID: {uid}")
+        
+        # OBTENER FILTROS
+        page = request.args.get('page', 1, type=int)
+        filtros = {
+            'nombre': request.args.get('nombre', ''),
+            'tipo': request.args.get('tipo', ''),
+            'modalidad': request.args.get('modalidad', ''),
+            'estado': request.args.get('estado', ''),
+            'organizador': request.args.get('organizador', ''),
+            'fecha_desde': request.args.get('fecha_desde', ''),
+            'fecha_hasta': request.args.get('fecha_hasta', '')
+        }
+        
+        current_app.logger.info(f"🔍 Filtros aplicados: {filtros}")
+        
+        # PAGINACIÓN
+        per_page = 10
+        offset = (page - 1) * per_page
 
-    # Para usuarios normales, mostrar solo eventos futuros
-    if rol == 1:
-        from controllers.publico_controller import IMG_EVENTOS
+        # Para usuarios normales, mostrar solo eventos futuros
+        if rol == 1:
+            from controllers.publico_controller import IMG_EVENTOS
+            
+            sql = """
+                SELECT * FROM eventos 
+                WHERE activo=1 AND fecha_fin >= CURDATE()
+            """
+            params = []
+            
+            # Aplicar filtros
+            if filtros['nombre']:
+                sql += " AND nombre LIKE %s"
+                params.append(f"%{filtros['nombre']}%")
+            if filtros['tipo']:
+                sql += " AND tipo_evento = %s"
+                params.append(filtros['tipo'])
+            if filtros['modalidad']:
+                sql += " AND modalidad = %s"
+                params.append(filtros['modalidad'])
+            if filtros['fecha_desde']:
+                sql += " AND fecha_inicio >= %s"
+                params.append(filtros['fecha_desde'])
+            if filtros['fecha_hasta']:
+                sql += " AND fecha_fin <= %s"
+                params.append(filtros['fecha_hasta'])
+            
+            # Contar total para paginación
+            count_sql = "SELECT COUNT(*) as total FROM (" + sql + ") as filtered"
+            current_app.logger.info(f"🔍 Count SQL (Usuario): {count_sql}")
+            current_app.logger.info(f"🔍 Count Params (Usuario): {params}")
+            
+            count_result = q_one(count_sql, tuple(params), dictcur=True)
+            if count_result and 'total' in count_result:
+                total = count_result['total']
+            else:
+                current_app.logger.error("❌ Count result inválido")
+                total = 0
+            
+            # Aplicar paginación
+            sql += " ORDER BY fecha_inicio ASC LIMIT %s OFFSET %s"
+            params.extend([per_page, offset])
+            
+            eventos = q_all(sql, tuple(params), dictcur=True)
+            
+            from models.inscripcion import mis_eventos as get_mis_eventos
+            eventos_inscritos = get_mis_eventos(current_user.id)
+            inscritas = set([e['id_evento'] for e in eventos_inscritos])
+            
+            return render_template("events/eventos_publico.html", 
+                                 eventos=eventos, 
+                                 IMG_EVENTOS=IMG_EVENTOS, 
+                                 inscritas=inscritas,
+                                 filtros=filtros,
+                                 pagination={
+                                     'page': page,
+                                     'per_page': per_page,
+                                     'total': total,
+                                     'pages': (total + per_page - 1) // per_page if total > 0 else 1
+                                 })
         
-        # Construir consulta con filtros (sin cambios)
-        sql = """
-            SELECT * FROM eventos 
-            WHERE activo=1 AND fecha_fin >= CURDATE()
-        """
-        params = []
+        # Para admin/organizador
+        current_app.logger.info(f"🔍 Construyendo consulta para rol: {rol}")
         
-        # Aplicar filtros (código existente)
+        try:
+            if rol == 3:  # Organizador
+                sql = """
+                    SELECT e.*, 
+                           CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, '')) as organizador_nombre
+                    FROM eventos e
+                    LEFT JOIN usuarios u ON e.id_organizador = u.ID_usuario
+                    WHERE e.id_organizador=%s
+                """
+                params = [uid]
+                current_app.logger.info(f"🔍 SQL Organizador: {sql}")
+            else:  # Admin
+                sql = """
+                    SELECT e.*, 
+                           CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, '')) as organizador_nombre
+                    FROM eventos e
+                    LEFT JOIN usuarios u ON e.id_organizador = u.ID_usuario
+                    WHERE 1=1
+                """
+                params = []
+                current_app.logger.info(f"🔍 SQL Admin: {sql}")
+        except Exception as e:
+            current_app.logger.error(f"❌ Error construyendo SQL: {e}")
+            raise
+        
+        # Aplicar filtros
         if filtros['nombre']:
-            sql += " AND nombre LIKE %s"
+            sql += " AND e.nombre LIKE %s"
             params.append(f"%{filtros['nombre']}%")
         if filtros['tipo']:
-            sql += " AND tipo_evento = %s"
+            sql += " AND e.tipo_evento = %s"
             params.append(filtros['tipo'])
         if filtros['modalidad']:
-            sql += " AND modalidad = %s"
+            sql += " AND e.modalidad = %s"
             params.append(filtros['modalidad'])
+        if filtros['estado']:
+            if filtros['estado'] == 'activo':
+                sql += " AND e.activo = 1"
+            elif filtros['estado'] == 'inactivo':
+                sql += " AND e.activo = 0"
+            elif filtros['estado'] == 'futuro':
+                sql += " AND e.fecha_inicio > CURDATE()"
+            elif filtros['estado'] == 'pasado':
+                sql += " AND e.fecha_fin < CURDATE()"
+        if filtros['organizador']:
+            sql += " AND e.id_organizador = %s"
+            params.append(filtros['organizador'])
         if filtros['fecha_desde']:
-            sql += " AND fecha_inicio >= %s"
+            sql += " AND e.fecha_inicio >= %s"
             params.append(filtros['fecha_desde'])
         if filtros['fecha_hasta']:
-            sql += " AND fecha_fin <= %s"
+            sql += " AND e.fecha_fin <= %s"
             params.append(filtros['fecha_hasta'])
         
         # Contar total para paginación
-        count_sql = "SELECT COUNT(*) as total FROM (" + sql + ") as filtered"
-        total = q_one(count_sql, tuple(params), dictcur=True)['total']
+        try:
+            count_sql = "SELECT COUNT(*) as total FROM (" + sql + ") as filtered"
+            current_app.logger.info(f"🔍 Count SQL (Admin/Organizador): {count_sql}")
+            current_app.logger.info(f"🔍 Count Params (Admin/Organizador): {params}")
+            
+            count_result = q_one(count_sql, tuple(params), dictcur=True)
+            if count_result and 'total' in count_result:
+                total = count_result['total']
+            else:
+                current_app.logger.error("❌ Count result inválido")
+                total = 0
+                
+            current_app.logger.info(f"📊 Total eventos: {total}")
+        except Exception as e:
+            current_app.logger.error(f"❌ Error en count SQL: {str(e)}")
+            total = 0
         
         # Aplicar paginación
-        sql += " ORDER BY fecha_inicio ASC LIMIT %s OFFSET %s"
+        sql += " ORDER BY e.fecha_inicio DESC LIMIT %s OFFSET %s"
         params.extend([per_page, offset])
         
+        current_app.logger.info(f"🔍 Final SQL: {sql}")
+        current_app.logger.info(f"🔍 Final Params: {params}")
+        
         eventos = q_all(sql, tuple(params), dictcur=True)
+        current_app.logger.info(f"✅ Eventos encontrados: {len(eventos)}")
         
-        from models.inscripcion import mis_eventos as get_mis_eventos
-        eventos_inscritos = get_mis_eventos(current_user.id)
-        inscritas = set([e['id_evento'] for e in eventos_inscritos])
+        # Obtener lista de organizadores para el filtro
+        organizadores = []
+        if rol == 2:  # Solo para admin
+            try:
+                organizadores = q_all("""
+                    SELECT DISTINCT u.ID_usuario, 
+                           CONCAT(COALESCE(u.nombre, ''), ' ', COALESCE(u.apellido, '')) as nombre_completo
+                    FROM eventos e 
+                    JOIN usuarios u ON e.id_organizador = u.ID_usuario 
+                    WHERE u.activo = 1
+                    ORDER BY u.nombre
+                """, dictcur=True)
+                current_app.logger.info(f"👥 Organizadores encontrados: {len(organizadores)}")
+            except Exception as e:
+                current_app.logger.error(f"❌ Error obteniendo organizadores: {str(e)}")
+                organizadores = []
         
-        return render_template("events/eventos_publico.html", 
+        return render_template("events/eventos_list.html", 
                              eventos=eventos, 
-                             IMG_EVENTOS=IMG_EVENTOS, 
-                             inscritas=inscritas,
+                             rol=rol,
+                             now=datetime.now(),
                              filtros=filtros,
+                             organizadores=organizadores,
                              pagination={
                                  'page': page,
                                  'per_page': per_page,
                                  'total': total,
-                                 'pages': (total + per_page - 1) // per_page
+                                 'pages': (total + per_page - 1) // per_page if total > 0 else 1
                              })
-    
-    # Para admin/organizador - CONSULTA MODIFICADA PARA INCLUIR NOMBRE DEL ORGANIZADOR
-    if rol == 3:
-        sql = """
-            SELECT e.*, 
-                   CONCAT(u.nombre, ' ', COALESCE(u.apellido, '')) as organizador_nombre
-            FROM eventos e
-            LEFT JOIN usuarios u ON e.id_organizador = u.ID_usuario
-            WHERE e.id_organizador=%s
-        """
-        params = [uid]
-    else:
-        sql = """
-            SELECT e.*, 
-                   CONCAT(u.nombre, ' ', COALESCE(u.apellido, '')) as organizador_nombre
-            FROM eventos e
-            LEFT JOIN usuarios u ON e.id_organizador = u.ID_usuario
-            WHERE 1=1
-        """
-        params = []
-    
-    # Aplicar filtros (código existente)
-    if filtros['nombre']:
-        sql += " AND e.nombre LIKE %s"
-        params.append(f"%{filtros['nombre']}%")
-    if filtros['tipo']:
-        sql += " AND e.tipo_evento = %s"
-        params.append(filtros['tipo'])
-    if filtros['modalidad']:
-        sql += " AND e.modalidad = %s"
-        params.append(filtros['modalidad'])
-    if filtros['estado']:
-        if filtros['estado'] == 'activo':
-            sql += " AND e.activo = 1"
-        elif filtros['estado'] == 'inactivo':
-            sql += " AND e.activo = 0"
-        elif filtros['estado'] == 'futuro':
-            sql += " AND e.fecha_inicio > CURDATE()"
-        elif filtros['estado'] == 'pasado':
-            sql += " AND e.fecha_fin < CURDATE()"
-    if filtros['organizador']:
-        sql += " AND e.id_organizador = %s"
-        params.append(filtros['organizador'])
-    if filtros['fecha_desde']:
-        sql += " AND e.fecha_inicio >= %s"
-        params.append(filtros['fecha_desde'])
-    if filtros['fecha_hasta']:
-        sql += " AND e.fecha_fin <= %s"
-        params.append(filtros['fecha_hasta'])
-    
-    # Contar total para paginación - MODIFICADO PARA USAR LA MISMA CONSULTA
-    count_sql = "SELECT COUNT(*) as total FROM (" + sql + ") as filtered"
-    total = q_one(count_sql, tuple(params), dictcur=True)['total']
-    
-    # Aplicar paginación
-    sql += " ORDER BY e.fecha_inicio DESC LIMIT %s OFFSET %s"
-    params.extend([per_page, offset])
-    
-    eventos = q_all(sql, tuple(params), dictcur=True)
-    
-    # Obtener lista de organizadores para el filtro - MODIFICADO PARA MOSTRAR NOMBRES
-    organizadores = q_all("""
-        SELECT DISTINCT u.ID_usuario, CONCAT(u.nombre, ' ', COALESCE(u.apellido, '')) as nombre_completo
-        FROM eventos e 
-        JOIN usuarios u ON e.id_organizador = u.ID_usuario 
-        WHERE u.activo = 1
-        ORDER BY u.nombre
-    """, dictcur=True) if rol == 2 else []
-    
-    return render_template("events/eventos_list.html", 
-                         eventos=eventos, 
-                         rol=rol,
-                         now=datetime.now(),
-                         filtros=filtros,
-                         organizadores=organizadores,
-                         pagination={
-                             'page': page,
-                             'per_page': per_page,
-                             'total': total,
-                             'pages': (total + per_page - 1) // per_page
-                         })
+        
+    except Exception as e:
+        current_app.logger.error(f"💥 ERROR en eventos_list: {str(e)}")
+        current_app.logger.error(f"🔧 Traceback: {traceback.format_exc()}")
+        flash("Error al cargar los eventos. Por favor, intenta nuevamente.", "danger")
+        return redirect(url_for("publico.inicio_publico"))
     
 # En la función mis_eventos - mostrar todos los eventos del usuario (incluyendo pasados)
 @eventos_bp.route("/mis_eventos")
@@ -1182,4 +1233,5 @@ def escanear_qr_asistencia(eid, token):
         
         flash("🎉 ¡Asistencia marcada correctamente!", "success")
     
+
     return redirect(url_for("eventos.evento_detalle", eid=eid))
