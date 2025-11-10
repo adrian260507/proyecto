@@ -1,5 +1,4 @@
 # utils/qr_generator.py
-# utils/qr_generator.py
 import qrcode
 from io import BytesIO
 import base64
@@ -10,7 +9,7 @@ from models.db import q_one, q_exec
 
 def generar_qr_asistencia(eid, duracion_minutos=120):
     """
-    Genera un código QR para marcar asistencia automática - VERSIÓN MEJORADA
+    Genera un código QR para marcar asistencia automática
     """
     try:
         # Generar token único con expiración
@@ -22,14 +21,6 @@ def generar_qr_asistencia(eid, duracion_minutos=120):
             INSERT INTO qr_asistencias (id_evento, token, fecha_expiracion, activo)
             VALUES (%s, %s, %s, 1)
         """, (eid, token, expiracion))
-        
-        # Crear datos del QR
-        qr_data = {
-            'eid': eid,
-            'token': token,
-            'expiracion': expiracion.isoformat(),
-            'tipo': 'asistencia_automatica'
-        }
         
         # Generar URL para escanear
         from flask import current_app
@@ -69,7 +60,7 @@ def generar_qr_asistencia(eid, duracion_minutos=120):
 
 def validar_token_qr(token, eid):
     """
-    Valida si un token QR es válido - VERSIÓN MEJORADA
+    Valida si un token QR es válido
     """
     try:
         # Buscar token en la base de datos
@@ -80,22 +71,27 @@ def validar_token_qr(token, eid):
         """, (token,), dictcur=True)
         
         if not token_data:
+            print(f"❌ Token no encontrado: {token}")
             return False
         
         # Verificar que pertenece al evento correcto
         if token_data['id_evento'] != eid:
+            print(f"❌ Token no coincide con evento: {token_data['id_evento']} != {eid}")
             return False
         
         # Verificar que no haya expirado
-        if token_data['fecha_expiracion'] < datetime.now():
+        if token_data['fecha_expiracion'] and token_data['fecha_expiracion'] < datetime.now():
+            print(f"❌ Token expirado: {token_data['fecha_expiracion']}")
             return False
         
         # Verificar que no haya sido usado
         if token_data['usado_por'] != 0:
+            print(f"❌ Token ya usado por: {token_data['usado_por']}")
             return False
         
+        print(f"✅ Token válido: {token}")
         return True
         
     except Exception as e:
-        print(f"Error validando token QR: {e}")
+        print(f"❌ Error validando token QR: {e}")
         return False
