@@ -1176,7 +1176,7 @@ def generar_qr_asistencia_page(eid):  # ← CAMBIAR NOMBRE
 @eventos_bp.route("/<int:eid>/escanear_qr/<token>")
 @login_required
 def escanear_qr_asistencia(eid, token):
-    """Procesa el escaneo del QR y marca asistencia automáticamente"""
+    """Procesa el escaneo del QR y marca asistencia automáticamente - VERSIÓN CORREGIDA"""
     ev = MEvento.obtener(eid)
     if not ev:
         flash("Evento no encontrado.", "danger")
@@ -1194,16 +1194,41 @@ def escanear_qr_asistencia(eid, token):
         flash("Código QR inválido o expirado.", "danger")
         return redirect(url_for("eventos.evento_detalle", eid=eid))
     
-    # Validar horario del evento
-    from datetime import datetime, time
+    # CORRECCIÓN: Validación de horario mejorada
+    from datetime import datetime, time, timedelta
     ahora = datetime.now()
-    hora_actual = ahora.time()
     
-    # Solo permitir marcar asistencia dentro del horario del evento
-    if ev.get('hora_inicio_diaria') and ev.get('hora_fin_diaria'):
-        if hora_actual < ev['hora_inicio_diaria'] or hora_actual > ev['hora_fin_diaria']:
-            flash(f"❌ Fuera del horario del evento. Solo puedes marcar asistencia entre {ev['hora_inicio_diaria'].strftime('%H:%M')} y {ev['hora_fin_diaria'].strftime('%H:%M')}.", "warning")
+    # Verificar si el evento tiene horarios definidos
+    hora_inicio = ev.get('hora_inicio_diaria')
+    hora_fin = ev.get('hora_fin_diaria')
+    
+    # Solo validar horario si AMBOS horarios están definidos
+    if hora_inicio and hora_fin:
+        # Convertir timedelta a time si es necesario (problema común con MySQL)
+        if isinstance(hora_inicio, timedelta):
+            total_seconds = int(hora_inicio.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            hora_inicio = time(hour=hours, minute=minutes)
+        
+        if isinstance(hora_fin, timedelta):
+            total_seconds = int(hora_fin.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            hora_fin = time(hour=hours, minute=minutes)
+        
+        hora_actual = ahora.time()
+        
+        # Debug: Mostrar horarios (puedes comentar esto después)
+        current_app.logger.info(f"🔍 Validación horario - Actual: {hora_actual}, Inicio: {hora_inicio}, Fin: {hora_fin}")
+        
+        # Validar si está dentro del horario
+        if hora_actual < hora_inicio or hora_actual > hora_fin:
+            flash(f"❌ Fuera del horario del evento. Solo puedes marcar asistencia entre {hora_inicio.strftime('%H:%M')} y {hora_fin.strftime('%H:%M')}.", "warning")
             return redirect(url_for("eventos.evento_detalle", eid=eid))
+    else:
+        # Si no hay horarios definidos, permitir siempre
+        current_app.logger.info("ℹ️ Evento sin horarios definidos, permitiendo asistencia")
     
     # Marcar asistencia para hoy
     hoy = ahora.date()
@@ -1233,5 +1258,4 @@ def escanear_qr_asistencia(eid, token):
         
         flash("🎉 ¡Asistencia marcada correctamente!", "success")
     
-
     return redirect(url_for("eventos.evento_detalle", eid=eid))
