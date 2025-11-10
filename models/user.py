@@ -136,7 +136,12 @@ class User(UserMixin):
     #funcion para crear usuario 
     @staticmethod
     def create_user(nombre, apellido, correo, contrasena, celular=None, documento_id=None):
-        hashed = generate_password_hash(contrasena)
+        # FORZAR PBKDF2 con parámetros consistentes
+        hashed = generate_password_hash(
+            contrasena, 
+            method='pbkdf2:sha256',
+            salt_length=16
+        )
         uid = q_exec("""
             INSERT INTO usuarios (nombre, apellido, correo, contrasena, celular, documento_id)
             VALUES (%s,%s,%s,%s,%s,%s)
@@ -184,4 +189,5 @@ def ensure_default_admin():
     if admin:
         return
     uid = User.create_user("Admin", "Sistema", "admin@sgtc.local", "Admin123*")
+
     q_exec("UPDATE usuarios_roles SET id_rol=2 WHERE id_usuario=%s", (uid,))
