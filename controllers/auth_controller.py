@@ -372,5 +372,40 @@ def debug_user(email):
         }
     else:
         return {'exists': False, 'email': email}
+        
+@auth_bp.route("/debug-database")
+def debug_database():
+    """Diagnóstico completo de la base de datos"""
+    from models.db import q_all, q_one
+    
+    try:
+        # 1. Verificar conexión y base de datos actual
+        db_info = q_one("SELECT DATABASE() as db_name, USER() as user", dictcur=True)
+        
+        # 2. Verificar TODOS los usuarios
+        all_users = q_all("""
+            SELECT ID_usuario, nombre, correo, activo, email_verified, 
+                   LENGTH(contrasena) as pass_length, created_at
+            FROM usuarios 
+            ORDER BY created_at DESC
+        """, dictcur=True)
+        
+        # 3. Buscar usuario específico
+        test_email = "abellosuarezmiguelangel@gmail.com"
+        specific_user = q_all("SELECT * FROM usuarios WHERE correo = %s", (test_email,), dictcur=True)
+        
+        return {
+            'database_info': db_info,
+            'total_users': len(all_users),
+            'all_users': all_users,
+            'specific_user_search': {
+                'email': test_email,
+                'found': len(specific_user) > 0,
+                'users_found': specific_user
+            }
+        }
+        
+    except Exception as e:
+        return {'error': str(e)}
 
 
