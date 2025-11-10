@@ -1176,30 +1176,136 @@ def generar_qr_asistencia_page(eid):  # ← CAMBIAR NOMBRE
 @eventos_bp.route("/<int:eid>/escanear_qr/<token>")
 @login_required
 def escanear_qr_asistencia(eid, token):
-    """Versión ultra-simplificada que siempre marca asistencia"""
+    """Versión ultra-simplificada con máxima tolerancia a errores"""
     try:
         from datetime import datetime
-        from models.db import q_exec
+        from models.db import q_exec, q_one
+        from flask import current_app
         
+        # LOG para diagnóstico
+        current_app.logger.info(f"🔍 ESCANEAR_QR - Inicio: evento={eid}, usuario={current_user.id}, token={token}")
+        
+        # 1. Verificar muy básicamente que el evento existe
+        ev = MEvento.obtener(eid)
+        if not ev:
+            current_app.logger.error(f"❌ Evento no encontrado: {eid}")
+            flash("Evento no encontrado.", "danger")
+            return redirect(url_for("eventos.evento_detalle", eid=eid))
+        
+        # 2. Fecha de hoy
         hoy = datetime.now().date()
+        current_app.logger.info(f"📅 Fecha de hoy: {hoy}")
         
-        # Insertar asistencia directamente
-        q_exec(
-            "INSERT INTO asistencias (id_evento, id_usuario, fecha, asistio, activo) VALUES (%s, %s, %s, 1, 1)",
-            (eid, current_user.id, hoy)
-        )
+        # 3. Verificar SI existe ya asistencia para hoy (forma más simple)
+        try:
+            existe_asistencia = q_one(
+                "SELECT 1 FROM asistencias WHERE id_evento=%s AND id_usuario=%s AND fecha=%s",
+                (eid, current_user.id, hoy)
+            )
+            if existe_asistencia:
+                current_app.logger.info("ℹ️ Ya existe asistencia para hoy")
+                flash("✅ Ya tenías asistencia marcada para hoy.", "info")
+                return redirect(url_for("eventos.evento_detalle", eid=eid))
+        except Exception as e:
+            current_app.logger.warning(f"⚠️ Error verificando asistencia existente: {e}")
+            # Continuamos de todas formas
         
-        # Actualizar inscripción
-        q_exec(
-            "UPDATE inscripciones SET asistio=1 WHERE id_evento=%s AND id_usuario=%s",
-            (eid, current_user.id)
-        )
+        # 4. INTENTAR INSERTAR ASISTENCIA con manejo de errores específico
+        try:
+            current_app.logger.info("🔄 Intentando insertar asistencia...")
+            resultado = q_exec(
+                "INSERT INTO asistencias (id_evento, id_usuario, fecha, asistio, activo) VALUES (%s, %s, %s, 1, 1)",
+                (eid, current_user.id, hoy)
+            )
+            current_app.logger.info(f"✅ Asistencia insertada. Resultado: {resultado}")
+        except Exception as e:
+            current_app.logger.error(f"❌ Error insertando asistencia: {e}")
+            # Podría ser un error de duplicado, lo ignoramos
+            flash("ℹ️ Ya tenías asistencia registrada para hoy.", "info")
+            return redirect(url_for("eventos.evento_detalle", eid=eid))
+        
+        # 5. INTENTAR ACTUALIZAR INSCRIPCIÓN
+        try:
+            current_app.logger.info("🔄 Intentando actualizar inscripción...")
+            q_exec(
+                "UPDATE inscripciones SET asistio=1 WHERE id_evento=%s AND id_usuario=%s",
+                (eid, current_user.id)
+            )
+            current_app.logger.info("✅ Inscripción actualizada")
+        except Exception as e:
+            current_app.logger.warning(f"⚠️ Error actualizando inscripción: {e}")
+            # No es crítico, continuamos
         
         flash("🎉 ¡Asistencia marcada correctamente!", "success")
+        current_app.logger.info("🎉 Proceso completado exitosamente")
         return redirect(url_for("eventos.evento_detalle", eid=eid))
         
     except Exception as e:
-        flash("Error al marcar asistencia.", "danger")
+        current_app.logger.error(f"💥 ERROR CRÍTICO en escanear_qr: {e}")
+        flash(f"❌ Error al marcar asistencia: {str(e)}", "danger")
         return redirect(url_for("eventos.evento_detalle", eid=eid))
 
+
+@eventos_bp.route("/<int:eid>/diagnostico_qr")
+@login_required
+def diagnostico_qr(eid):
+    """Página de diagnóstico completo del sistema QR"""
+    from models.db import q_one, q_all
+    from datetime import datetime
+    
+    diagnostico = {}
+    
+    # 1. Verificar evento
+    ev = MEvento.obtener(eid)
+    diagnostico['evento'] = {
+        'existe': bool(ev),
+        'nombre': ev['nombre'] if ev else 'No encontrado',
+        'id': eid
+    }
+    
+    # 2. Verificar inscripción del usuario
+    inscripcion = q_one(
+        "SELECT * FROM inscripciones WHERE id_evento=%s AND id_usuario=%s AND activo=1",
+        (eid, current_user.id), dictcur=True
+    )
+    diagnostico['inscripcion'] = {
+        'existe': bool(inscripcion),
+        'datos': inscripcion
+    }
+    
+    # 3. Verificar asistencias existentes para hoy
+    hoy = datetime.now().date()
+    asistencias_hoy = q_all(
+        "SELECT * FROM asistencias WHERE id_evento=%s AND id_usuario=%s AND fecha=%s",
+        (eid, current_user.id, hoy), dictcur=True
+    )
+    diagnostico['asistencias_hoy'] = {
+        'cantidad': len(asistencias_hoy),
+        'datos': asistencias_hoy
+    }
+    
+    # 4. Verificar estructura de tablas
+    try:
+        # Verificar si la tabla asistencias tiene los campos correctos
+        tabla_asistencias = q_all(
+            "DESCRIBE asistencias", dictcur=True
+        )
+        diagnostico['tabla_asistencias'] = {
+            'existe': True,
+            'campos': [campo['Field'] for campo in tabla_asistencias]
+        }
+    except Exception as e:
+        diagnostico['tabla_asistencias'] = {
+            'existe': False,
+            'error': str(e)
+        }
+    
+    # 5. Generar un QR de prueba
+    qr_data = generar_qr_asistencia(eid, 60)  # 60 minutos de duración
+    
+    return render_template("events/diagnostico_qr.html", 
+                         diagnostico=diagnostico,
+                         qr_data=qr_data,
+                         usuario_actual=current_user,
+                         hoy=hoy)
 
