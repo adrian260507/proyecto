@@ -25,7 +25,7 @@ def verificar_y_crear_tablas():
 if __name__ == "__main__":
     verificar_y_crear_tablas()
     
-    debug_mode = os.getenv("FLASK_DEBUG", "0") == "0"
+    debug_mode = os.getenv("FLASK_DEBUG", "0") == "1"
     try:
         port = int(os.getenv("PORT", 5000))
         host = os.getenv("FLASK_HOST", "0.0.0.0")
@@ -35,4 +35,5 @@ if __name__ == "__main__":
     except Exception as e:
         app.logger.error(f"Error al iniciar la aplicación: {e}")
         raise
+
 
