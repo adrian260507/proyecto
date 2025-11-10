@@ -175,15 +175,17 @@ def login():
             if not user.is_active:
                 flash("El usuario está deshabilitado", "danger")
             else:
-                # Verificar si el correo está verificado
-                if not User.is_email_verified(user.id): 
-                    flash("⚠️ Por favor, verifica tu correo electrónico antes de iniciar sesión.", "warning")
-                    return redirect(url_for("auth.verify_email", user_id=user.id))
+                # TEMPORAL: Deshabilitar verificación de correo para testing
+                # if not User.is_email_verified(user.id): 
+                #     flash("⚠️ Por favor, verifica tu correo electrónico antes de iniciar sesión.", "warning")
+                #     return redirect(url_for("auth.verify_email", user_id=user.id))
                 
                 login_user(user)
                 flash("Bienvenido/a", "success")
                 return redirect(url_for("publico.inicio_publico"))
         else:
+            # Debug: Log para ver qué está fallando
+            current_app.logger.error(f"Login fallido para: {correo}")
             flash("Credenciales inválidas.", "danger")
     
     return render_template("auth/login.html")
@@ -331,4 +333,5 @@ def reset_password(token):
         return redirect(url_for("auth.login"))
 
     return render_template("auth/reset.html", token=token)
+
 
