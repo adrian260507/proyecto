@@ -12,6 +12,12 @@ class Config:
     DB_PASSWORD = os.getenv("DB_PASSWORD", os.getenv("MYSQLPASSWORD", "ghih jrpw ffbb rjuj"))
     DB_NAME = os.getenv("DB_NAME", os.getenv("MYSQLDATABASE", "sistemagestionbd"))
     DB_PORT = int(os.getenv("DB_PORT", os.getenv("MYSQLPORT", "3306")))
+    #Nuevo
+    DB_USE_UNICODE = True
+    DB_CHARSET = 'utf8mb4'
+    DB_COLLATION = 'utf8mb4_unicode_ci'
+    # Timezone
+    DB_TIMEZONE = '+00:00'
     # Mail
     MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.sendgrid.net")
     MAIL_PORT = int(os.getenv("MAIL_PORT", 587))
@@ -35,6 +41,7 @@ class Config:
     FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
 
     FLASK_PORT = int(os.getenv("PORT", "5000"))
+
 
 
 
