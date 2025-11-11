@@ -20,12 +20,9 @@ class Config:
     DB_TIMEZONE = '+00:00'
 
     # Mail - Configuración para MailerSend
-    MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.mailersend.net")
-    MAIL_PORT = int(os.getenv("MAIL_PORT", "587"))
-    MAIL_USE_TLS = True
-    MAIL_USERNAME = os.getenv("MAIL_USERNAME", "MS_8U1S8K@test-r6ke4n17nyvgon12.mlsender.net")
-    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "mssp.KOreFjK.351ndgw3npr4zqx8.v7CrXDb")
+    MAILERSEND_API_KEY = os.getenv("MAILERSEND_API_KEY", "mlsn.e2c66f4d1a674aa5a1edb0dc4b36bfb61e433da8a230f5f72631d81f9eac5fee")
     MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER", "conexa@test-r6ke4n17nyvgon12.mlsender.net")
+    MAIL_DEFAULT_SENDER_NAME = os.getenv("MAIL_DEFAULT_SENDER_NAME", "Connexa Sistema")
     # App
     BASE_URL = os.getenv("BASE_URL", "https://tu-app.railway.app")
     MAIL_TEMPLATE_FOLDER = "mails"
@@ -40,6 +37,7 @@ class Config:
     FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
 
     FLASK_PORT = int(os.getenv("PORT", "5000"))
+
 
 
 
