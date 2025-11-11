@@ -7,40 +7,74 @@ import logging
 from .mailersend_client import mailersend_client
 from .email_renderer import send_templated_email
 
-def send_mail(subject, recipients, body, html_body=None, attachments=None):
+def send_email(self, subject, recipients, html_content=None, text_content=None, attachments=None):
     """
-    Función principal para enviar correos usando MailerSend API
+    Envía un email usando la API de MailerSend
     """
     try:
-        # Formatear destinatarios para MailerSend
-        formatted_recipients = []
-        for recipient in recipients:
-            if isinstance(recipient, str):
-                formatted_recipients.append({
-                    "email": recipient,
-                    "name": recipient.split('@')[0]  # Usar la parte antes del @ como nombre
-                })
-            else:
-                formatted_recipients.append(recipient)
-        
-        # Enviar usando MailerSend
-        success = mailersend_client.send_email(
-            subject=subject,
-            recipients=formatted_recipients,
-            html_content=html_body,
-            text_content=body,
-            attachments=attachments
+        if not self.api_key:
+            current_app.logger.error("❌ MailerSend API key no configurada")
+            return False
+
+        # Crear cliente y mensaje
+        mailer = emails.NewEmail(self.api_key)
+        message = mailer.NewMessage()
+
+        # Configurar remitente
+        mailer.set_mail_from(
+            message,
+            {
+                "name": self.sender_name,
+                "email": self.sender_email,
+            }
         )
-        
-        if success:
-            current_app.logger.info(f"✅ Correo enviado exitosamente a {recipients}")
+
+        # Configurar destinatarios
+        recipient_list = [
+            {"name": r.get('name', 'Usuario'), "email": r['email']}
+            for r in recipients
+        ]
+        mailer.set_mail_to(message, recipient_list)
+
+        # Asunto
+        mailer.set_subject(message, subject)
+
+        # Contenido HTML
+        if html_content:
+            mailer.set_html_content(message, html_content)
+
+        # Contenido de texto plano
+        if text_content:
+            mailer.set_plaintext_content(message, text_content)
+        elif html_content:
+            text_content = self._html_to_plain_text(html_content)
+            mailer.set_plaintext_content(message, text_content)
+
+        # Adjuntos (si los hay)
+        if attachments:
+            attachment_list = []
+            for attachment in attachments:
+                if isinstance(attachment, dict) and 'data' in attachment:
+                    encoded_data = base64.b64encode(attachment['data']).decode('utf-8')
+                    attachment_list.append({
+                        "content": encoded_data,
+                        "filename": attachment.get('filename', 'attachment'),
+                        "type": attachment.get('content_type', 'application/octet-stream')
+                    })
+            mailer.set_attachments(message, attachment_list)
+
+        # 🚀 Enviar
+        response = mailer.send(message)
+
+        if response and response.status_code == 202:
+            current_app.logger.info(f"✅ Email enviado exitosamente a {recipients}")
+            return True
         else:
-            current_app.logger.error(f"❌ Error enviando correo a {recipients}")
-        
-        return success
-        
+            current_app.logger.error(f"❌ Error enviando email: {response.status_code if response else 'No response'}")
+            return False
+
     except Exception as e:
-        current_app.logger.error(f"💥 Error en send_mail: {str(e)}")
+        current_app.logger.error(f"💥 Error en MailerSend: {str(e)}")
         return False
 
 # =============================================
@@ -505,3 +539,4 @@ def enviar_certificado_individual(usuario, evento, inscripcion):
     except Exception as e:
         current_app.logger.error(f"Error generando certificado individual: {str(e)}")
         return False
+
