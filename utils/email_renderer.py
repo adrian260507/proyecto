@@ -1,7 +1,6 @@
 from flask import render_template
 from flask import current_app
 import os
-from .mailer import send_mail  # Ahora importamos de nuestro mailer actualizado
 
 def get_email_css():
     """
@@ -114,4 +113,5 @@ def generate_plain_text(html_content):
     except Exception as e:
         current_app.logger.error(f"❌ Error generando texto plano: {str(e)}")
         return "Error generando contenido de texto plano"
+
 
