@@ -65,6 +65,9 @@ def send_templated_email(subject, recipients, template_path, **context):
         current_app.logger.info(f"📧 Asunto: {subject}")
         current_app.logger.info(f"📄 Plantilla: {template_path}")
         
+        # Importar aquí para evitar el import circular
+        from utils.mailer import send_mail  
+
         # Verificar configuración de MailerSend
         api_key = current_app.config.get("MAILERSEND_API_KEY")
         if not api_key:
@@ -97,6 +100,7 @@ def send_templated_email(subject, recipients, template_path, **context):
         current_app.logger.error(f"🔧 Detalles del error: {type(e).__name__}")
         return False
 
+
 def generate_plain_text(html_content):
     """
     Genera una versión en texto plano del HTML
@@ -113,5 +117,6 @@ def generate_plain_text(html_content):
     except Exception as e:
         current_app.logger.error(f"❌ Error generando texto plano: {str(e)}")
         return "Error generando contenido de texto plano"
+
 
 
