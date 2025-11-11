@@ -1,7 +1,7 @@
-from flask import render_template
-from flask_mail import Message
+frfrom flask import render_template
 from flask import current_app
 import os
+from .mailer import send_mail  # Ahora importamos de nuestro mailer actualizado
 
 def get_email_css():
     """
@@ -34,7 +34,7 @@ def render_email(template_path, **context):
         base_context = {
             'base_url': current_app.config.get('BASE_URL', 'http://localhost:5000'),
             'app_name': 'Connexa - Sistema de Gestión',
-            'support_email': current_app.config.get('MAIL_USERNAME', 'asistenciasgtc@gmail.com')
+            'support_email': current_app.config.get('MAIL_DEFAULT_SENDER', 'conexa@test-r6ke4n17nyvgon12.mlsender.net')
         }
         base_context.update(context)
         
@@ -43,7 +43,7 @@ def render_email(template_path, **context):
         html_content = render_template(template_path, **base_context)
         current_app.logger.info(f"✅ Plantilla renderizada, tamaño: {len(html_content)} caracteres")
         
-        # Inyectar CSS inline en el HTML (mejor compatibilidad con clientes de email)
+        # Inyectar CSS inline en el HTML
         css_content = get_email_css()
         html_with_css = html_content.replace('</head>', f'<style>{css_content}</style></head>')
         
@@ -59,19 +59,17 @@ def render_email(template_path, **context):
 
 def send_templated_email(subject, recipients, template_path, **context):
     """
-    Envía un correo usando una plantilla - OPTIMIZADO PARA MAILERSEND
+    Envía un correo usando una plantilla con MailerSend API
     """
     try:
         current_app.logger.info(f"📤 Intentando enviar correo a: {recipients}")
         current_app.logger.info(f"📧 Asunto: {subject}")
         current_app.logger.info(f"📄 Plantilla: {template_path}")
         
-        # Verificar configuración de email
-        mail_username = current_app.config.get("MAIL_USERNAME")
-        mail_password = current_app.config.get("MAIL_PASSWORD")
-        
-        if not mail_username or not mail_password:
-            current_app.logger.error("❌ Credenciales de MailerSend no configuradas")
+        # Verificar configuración de MailerSend
+        api_key = current_app.config.get("MAILERSEND_API_KEY")
+        if not api_key:
+            current_app.logger.error("❌ MailerSend API key no configurada")
             return False
             
         # Renderizar HTML con CSS inline
@@ -80,8 +78,7 @@ def send_templated_email(subject, recipients, template_path, **context):
         # Generar versión texto plano
         text_body = generate_plain_text(html_body)
         
-        # Usar nuestra función mejorada de envío
-        from .mailer import send_mail
+        # Usar nuestra función de envío actualizada
         success = send_mail(
             subject=subject,
             recipients=recipients,
